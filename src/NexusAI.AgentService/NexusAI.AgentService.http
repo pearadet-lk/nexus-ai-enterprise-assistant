@@ -1,0 +1,6 @@
+@NexusAI.AgentService_HostAddress = http://localhost:5128
+
+GET {{NexusAI.AgentService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  namespace: nexusai
+  labels:
+    app: audit-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: audit-service
+  template:
+    metadata:
+      labels:
+        app: audit-service
+    spec:
+      containers:
+        - name: audit-service
+          image: nexusai/audit-service:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ConnectionStrings__RabbitMq
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: RABBITMQ
+            - name: OpenTelemetry__OtlpEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: OTLP_ENDPOINT
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: nexusai
+  labels:
+    app: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: nexusai/notification-service:local
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ConnectionStrings__RabbitMq
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: RABBITMQ
+            - name: OpenTelemetry__OtlpEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: OTLP_ENDPOINT

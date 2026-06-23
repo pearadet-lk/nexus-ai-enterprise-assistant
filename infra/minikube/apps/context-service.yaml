@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: context-service
+  namespace: nexusai
+  labels:
+    app: context-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: context-service
+  template:
+    metadata:
+      labels:
+        app: context-service
+    spec:
+      containers:
+        - name: context-service
+          image: nexusai/context-service:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ASPNETCORE_URLS
+              value: http://+:8080
+            - name: ConnectionStrings__NexusDb
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: NEXUS_DB
+            - name: ConnectionStrings__Redis
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: REDIS
+            - name: ConnectionStrings__RabbitMq
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: RABBITMQ
+            - name: Keycloak__Authority
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: KEYCLOAK_AUTHORITY
+            - name: OpenTelemetry__OtlpEndpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: OTLP_ENDPOINT
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: context-service
+  namespace: nexusai
+  labels:
+    app: context-service
+spec:
+  selector:
+    app: context-service
+  ports:
+    - port: 8080
+      targetPort: 8080

@@ -1,0 +1,28 @@
+## *.NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+## Node
+node_modules/
+dist/
+*.local
+
+## Environment
+.env
+.env.*
+
+## OS
+Thumbs.db
+.DS_Store
+
+## IDE
+.idea/
+
+## Logs
+*.log
+
+## Database
+*.db

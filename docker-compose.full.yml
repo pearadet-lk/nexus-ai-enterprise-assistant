@@ -1,0 +1,135 @@
+# Full local stack: infrastructure + all NexusAI services.
+# Build images first: docker compose -f docker-compose.full.yml build
+# Then start: docker compose -f docker-compose.full.yml up -d
+
+include:
+  - path: docker-compose.yml
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.gateway
+    container_name: nexusai-api-gateway
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Keycloak__Authority: http://keycloak:8080/realms/nexusai
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+      ReverseProxy__Clusters__identity-cluster__Destinations__identity__Address: http://identity:8080/
+      ReverseProxy__Clusters__context-cluster__Destinations__context__Address: http://context-service:8080/
+      ReverseProxy__Clusters__agent-cluster__Destinations__agent__Address: http://agent-service:8080/
+      ReverseProxy__Clusters__mcp-cluster__Destinations__mcp__Address: http://mcp-gateway:8080/
+    depends_on:
+      - keycloak
+      - identity
+      - context-service
+      - agent-service
+      - mcp-gateway
+
+  identity:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.identity
+    container_name: nexusai-identity
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Keycloak__Authority: http://keycloak:8080/realms/nexusai
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+    depends_on:
+      - keycloak
+
+  context-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.context
+    container_name: nexusai-context-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__NexusDb: Server=sqlserver,1433;Database=NexusAI;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True
+      ConnectionStrings__Redis: redis:6379
+      ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672
+      Keycloak__Authority: http://keycloak:8080/realms/nexusai
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+    depends_on:
+      - sqlserver
+      - redis
+      - rabbitmq
+      - keycloak
+
+  agent-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.agent
+    container_name: nexusai-agent-service
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Services__ContextService: http://context-service:8080
+      Services__McpGateway: http://mcp-gateway:8080
+      Keycloak__Authority: http://keycloak:8080/realms/nexusai
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+    depends_on:
+      - context-service
+      - mcp-gateway
+
+  mcp-gateway:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.mcp-gateway
+    container_name: nexusai-mcp-gateway
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Redis: redis:6379
+      Keycloak__Authority: http://keycloak:8080/realms/nexusai
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+      McpServers__0__Endpoint: http://mcp-sql:8080
+      McpServers__1__Endpoint: http://mcp-files:8080
+    depends_on:
+      - redis
+      - mcp-sql
+      - mcp-files
+
+  mcp-sql:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.mcp-sql
+    container_name: nexusai-mcp-sql
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__NexusDb: Server=sqlserver,1433;Database=NexusAI;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True
+    depends_on:
+      - sqlserver
+
+  mcp-files:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.mcp-files
+    container_name: nexusai-mcp-files
+    volumes:
+      - ./data/documents:/app/data/documents:ro
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+
+  audit-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.audit
+    container_name: nexusai-audit-service
+    environment:
+      ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+    depends_on:
+      - rabbitmq
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.notification
+    container_name: nexusai-notification-service
+    environment:
+      ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672
+      OpenTelemetry__OtlpEndpoint: http://jaeger:4317
+    depends_on:
+      - rabbitmq

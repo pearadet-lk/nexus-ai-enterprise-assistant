@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: nexusai
+
+resources:
+  - namespace.yaml
+  - secret.yaml
+  - configmap.yaml
+  - infrastructure/sqlserver.yaml
+  - infrastructure/redis.yaml
+  - infrastructure/rabbitmq.yaml
+  - infrastructure/jaeger.yaml
+  - infrastructure/keycloak.yaml
+  - apps/identity.yaml
+  - apps/context-service.yaml
+  - apps/mcp-sql.yaml
+  - apps/mcp-files.yaml
+  - apps/mcp-gateway.yaml
+  - apps/agent-service.yaml
+  - apps/api-gateway.yaml
+  - apps/audit-service.yaml
+
+configMapGenerator:
+  - name: keycloak-realm
+    files:
+      - nexusai-realm.json=config/nexusai-realm.json
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: nexusai
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false

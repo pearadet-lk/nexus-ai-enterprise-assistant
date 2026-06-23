@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nexusai-config
+  namespace: nexusai
+data:
+  MSSQL_SA_PASSWORD: "Your_strong_password123"
+  KEYCLOAK_AUTHORITY: "http://keycloak:8080/realms/nexusai"
+  OTLP_ENDPOINT: "http://jaeger:4317"
+  REDIS: "redis:6379"
+  RABBITMQ: "amqp://guest:guest@rabbitmq:5672"
+  NEXUS_DB: "Server=sqlserver,1433;Database=NexusAI;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True"
+  CONTEXT_SERVICE_URL: "http://context-service:8080"
+  MCP_GATEWAY_URL: "http://mcp-gateway:8080"
+  MCP_SQL_URL: "http://mcp-sql:8080"
+  MCP_FILES_URL: "http://mcp-files:8080"
+  GATEWAY_IDENTITY_URL: "http://identity:8080/"
+  GATEWAY_CONTEXT_URL: "http://context-service:8080/"
+  GATEWAY_AGENT_URL: "http://agent-service:8080/"
+  GATEWAY_MCP_URL: "http://mcp-gateway:8080/"

@@ -76,7 +76,20 @@ async function authorizedFetch(path: string, init?: RequestInit): Promise<Respon
 }
 
 async function readData<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as ApiResponse<T>;
+  const text = await response.text();
+  if (!text) {
+    throw new Error(response.ok
+      ? 'Empty response from server'
+      : `Request failed (${response.status})`);
+  }
+
+  let payload: ApiResponse<T>;
+  try {
+    payload = JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    throw new Error(`Invalid response from server (${response.status})`);
+  }
+
   if (!response.ok || !payload.success || !payload.data) {
     throw new Error(payload.error ?? `Request failed (${response.status})`);
   }

@@ -2,19 +2,20 @@
 
 AI-powered enterprise platform that connects employees, business systems, databases, and documents through MCP-enabled intelligent agents.
 
-**Status:** Phases 1–5 are implemented. The solution builds with .NET 10 and React 19. Chat requires a valid OpenAI API key.
+## Summary
 
----
+Built with **.NET 10** and **React 19**. Chat requires a valid **OpenAI API key**.
 
-## What this project includes
-
-| Area | Capabilities |
-|------|----------------|
+| Area | What's included |
+|------|-----------------|
 | **Auth** | Keycloak OIDC login, JWT on all API routes, `user` and `admin` roles |
-| **Chat** | Streaming SSE responses, multi-agent pipeline (Planner → Memory → Tool → Review) |
-| **MCP tools** | SQL queries, delayed shipments, document read/search |
-| **Data** | SQL Server for conversations, messages, audit logs, tool executions, shipments |
+| **Chat** | SSE streaming, multi-agent pipeline (Planner → Memory → Tool → Review) |
+| **MCP tools** | SQL queries, delayed shipments, document read/search, Jira incidents |
+| **Data** | SQL Server — conversations, messages, audit logs, tool executions, shipments |
 | **Enterprise** | Redis cache, RabbitMQ audit pipeline, OpenTelemetry → Jaeger, admin dashboard |
+| **Deploy** | `docker compose -f docker-compose.full.yml up -d` · `minikube-deploy.ps1` / `minikube-deploy.sh` |
+
+Future work: see [ROADMAP.md](ROADMAP.md).
 
 ---
 
@@ -31,6 +32,7 @@ flowchart LR
   Agent --> MCP
   MCP --> SqlMcp[SQL MCP :5010]
   MCP --> FileMcp[Files MCP :5011]
+  MCP --> JiraMcp[Jira MCP :5012]
   Context --> SQL[(SQL Server)]
   Context --> Redis[(Redis)]
   Context --> RMQ[(RabbitMQ)]
@@ -45,34 +47,213 @@ flowchart LR
 
 ## Prerequisites
 
-| Tool | Version | Required for |
-|------|---------|--------------|
-| [.NET SDK](https://dotnet.microsoft.com/download) | 10.x | Backend services |
-| [Node.js](https://nodejs.org/) | 20+ | Frontend |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Latest | SQL, Keycloak, Redis, RabbitMQ, Jaeger |
+| Tool | Version | When you need it |
+|------|---------|------------------|
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Latest | **Docker full stack** (recommended quick start) |
 | OpenAI API key | — | AI chat (required for chat) |
-| [Minikube](https://minikube.sigs.k8s.io/) + kubectl | Optional | Kubernetes local deploy |
-| `dotnet-ef` global tool | Optional | Manual migrations only |
+| [Minikube](https://minikube.sigs.k8s.io/) + kubectl | Optional | Kubernetes deploy (8 GB RAM recommended) |
+| [.NET SDK](https://dotnet.microsoft.com/download) | 10.x | Local dev only (`dotnet run`) |
+| [Node.js](https://nodejs.org/) | 20+ | Local dev only (`npm run dev`) |
 
-```bash
-dotnet tool install --global dotnet-ef   # only if you run migrations manually
+**App login:** `demo` / `demo` (chat) · `admin` / `admin` (chat + admin dashboard)
+
+---
+
+## Deploy overview
+
+| | [Docker deploy](#docker-deploy) | [Minikube deploy](#minikube-deploy) |
+|---|--------------------------------|-------------------------------------|
+| **What runs in cluster/containers** | Everything (backend + frontend) | Everything (backend + frontend) |
+| **Frontend** | `web` container | `web` pod |
+| **Browser access** | Direct after `up -d` | Auto port-forward after deploy script |
+| **Deploy command** | `docker compose -f docker-compose.full.yml up -d` | `minikube-deploy.ps1` / `minikube-deploy.sh` |
+| **Teardown command** | `docker compose -f docker-compose.full.yml down` | `minikube-teardown.ps1` / `minikube-teardown.sh` |
+| **Run from** | Repository root | Repository root |
+| **Prerequisites** | Docker Desktop | Minikube + kubectl + Docker |
+
+---
+
+## Docker deploy
+
+All services run in Docker — infrastructure, backend, and React frontend (nginx). No extra terminals needed after deploy.
+
+**File:** `docker-compose.full.yml` (includes `docker-compose.yml` for SQL, Keycloak, Redis, RabbitMQ, Jaeger)
+
+### Deploy commands
+
+Run from the **repository root**. First build can take several minutes.
+
+**Windows PowerShell — full deploy:**
+
+```powershell
+$env:OPENAI_API_KEY = "sk-your-key-here"
+docker compose -f docker-compose.full.yml build
+docker compose -f docker-compose.full.yml up -d
+docker compose -f docker-compose.full.yml ps
 ```
 
+**Linux / macOS — full deploy:**
+
+```bash
+export OPENAI_API_KEY=sk-your-key-here
+docker compose -f docker-compose.full.yml build
+docker compose -f docker-compose.full.yml up -d
+docker compose -f docker-compose.full.yml ps
+```
+
+Wait **30–90 seconds** for SQL Server and Keycloak, then open **http://localhost:5173**.
+
+**Other Docker commands:**
+
+```bash
+# Health check
+curl http://localhost:5000/api/health
+
+# Follow logs
+docker compose -f docker-compose.full.yml logs -f web
+
+# Rebuild one service after code change
+docker compose -f docker-compose.full.yml build agent-service
+docker compose -f docker-compose.full.yml up -d agent-service
+
+# Fix missing OpenAI key
+docker compose -f docker-compose.full.yml up -d agent-service   # after setting OPENAI_API_KEY
+
+# Stop
+docker compose -f docker-compose.full.yml down
+
+# Stop and delete data (destructive)
+docker compose -f docker-compose.full.yml down -v
+```
+
+### Docker URLs
+
+| What | URL | Login |
+|------|-----|-------|
+| **Web UI** (start here) | http://localhost:5173 | `demo` / `demo` or `admin` / `admin` |
+| API health | http://localhost:5000/api/health | — |
+| Keycloak | http://localhost:8080 | app users above |
+| Keycloak admin | http://localhost:8080/admin | `admin` / `admin` |
+| Jaeger (traces) | http://localhost:16686 | — |
+| RabbitMQ UI | http://localhost:15672 | `guest` / `guest` |
+| SQL Server | `localhost:1433` | `sa` / `Your_strong_password123` |
+| Redis | `localhost:6380` | — |
+
+Backend services (identity, agent, MCP servers, workers) have **no host port** — the UI reaches them via the API Gateway on `:5000`.
+
 ---
 
-## Choose how to run
+## Minikube deploy
 
-| Mode | Best for | Infra | App services | Frontend |
-|------|----------|-------|--------------|----------|
-| **A. Local dev** (recommended) | Day-to-day development | Docker Compose | `dotnet run` in terminals | `npm run dev` |
-| **B. Docker full stack** | All-in-containers smoke test | Included in compose | Docker images | Run locally or add later |
-| **C. Minikube** | Kubernetes testing | In cluster | In cluster | `npm run dev` + `port-forward-minikube` |
+Runs **everything in the cluster** — backend services and React frontend (`web` pod).
+
+Use the **root wrapper scripts** (they call `scripts/deploy-minikube.*` and `scripts/teardown-minikube.*` for you):
+
+| Root command (run from repo root) | Calls | Purpose |
+|-----------------------------------|-------|---------|
+| `minikube-deploy.ps1` / `minikube-deploy.sh` | `scripts/deploy-minikube.*` | Start Minikube if needed → build → deploy → **auto port-forward** |
+| `minikube-teardown.ps1` / `minikube-teardown.sh` | `scripts/teardown-minikube.*` | **Stop port-forwards** → delete cluster → stop Minikube |
+
+Kubernetes manifests: `infra/minikube/`
+
+### Deploy (single command)
+
+From the **repository root**:
+
+**Windows PowerShell:**
+
+```powershell
+$env:OPENAI_API_KEY = "sk-your-key-here"
+.\minikube-deploy.ps1
+```
+
+**Linux / macOS:**
+
+```bash
+export OPENAI_API_KEY=sk-your-key-here
+chmod +x minikube-deploy.sh minikube-teardown.sh
+./minikube-deploy.sh
+```
+
+What happens:
+
+1. **Starts Minikube** if it is not already running (8 GB RAM / 4 CPUs)
+2. Builds all images inside Minikube’s Docker (including `web`)
+3. Applies manifests and waits for pods
+4. Starts port-forwards in the background → `.minikube/port-forward.pids`
+
+When the script finishes, open **http://localhost:5173** (`demo` / `demo`).
+
+```bash
+kubectl -n nexusai get pods -w    # optional — watch progress
+curl http://localhost:5000/api/health
+```
+
+### Teardown (single command)
+
+From the **repository root** — stops port-forwards, removes NexusAI from the cluster, stops Minikube:
+
+**Windows PowerShell:**
+
+```powershell
+.\minikube-teardown.ps1
+```
+
+**Linux / macOS:**
+
+```bash
+./minikube-teardown.sh
+```
+
+Keep the Minikube VM for a faster next deploy:
+
+```powershell
+.\minikube-teardown.ps1 -KeepMinikube    # Windows
+./minikube-teardown.sh --keep-minikube   # Linux / macOS
+```
+
+### Minikube URLs
+
+| What | URL | Login |
+|------|-----|-------|
+| **Web UI** (start here) | http://localhost:5173 | `demo` / `demo` or `admin` / `admin` |
+| API health | http://localhost:5000/api/health | — |
+| Keycloak | http://localhost:8080 | app users above |
+| Keycloak admin | http://localhost:8080/admin | `admin` / `admin` |
+| Jaeger (traces) | http://localhost:16686 | — |
+| RabbitMQ UI | http://localhost:15672 | `guest` / `guest` |
+
+Port-forwards start automatically when you run `minikube-deploy`. Re-run deploy if URLs stop responding.
+
+### Advanced (`scripts/`)
+
+Lower-level scripts (usually not needed if you use the root wrappers):
+
+```bash
+# Set OpenAI key after deploy
+kubectl -n nexusai create secret generic nexusai-secrets \
+  --from-literal=mssql-sa-password='Your_strong_password123' \
+  --from-literal=openai-api-key='sk-your-key' \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n nexusai rollout restart deployment/agent-service
+
+# Logs
+kubectl -n nexusai logs -f deployment/web
+
+# Port-forward only (stop / debug) — deploy already starts these in background
+.\scripts\port-forward-minikube.ps1 -Stop          # Windows
+./scripts/port-forward-minikube.sh --stop          # Linux / macOS
+```
+
+More detail: [infra/minikube/README.md](infra/minikube/README.md)
 
 ---
 
-## A. Local development (recommended)
+## Local development
 
-### Step 1 — Clone and verify build
+For day-to-day coding: Docker for infrastructure only, services via `dotnet run`, frontend via `npm run dev`.
+
+### Clone and build
 
 ```bash
 git clone <your-repo-url>
@@ -82,7 +263,7 @@ dotnet build NexusAI.sln
 cd src/NexusAI.Web && npm install && npm run build && cd ../..
 ```
 
-### Step 2 — Start infrastructure
+### Start infrastructure
 
 From the repository root:
 
@@ -98,29 +279,15 @@ docker compose ps
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| Keycloak admin console | http://localhost:8080 | `admin` / `admin` |
+| Keycloak | http://localhost:8080 | `admin` / `admin` |
 | SQL Server | `localhost:1433` | `sa` / `Your_strong_password123` |
-| Redis | `localhost:6379` | — |
-| RabbitMQ management | http://localhost:15672 | `guest` / `guest` |
-| Jaeger UI | http://localhost:16686 | — |
+| Redis | `localhost:6380` | — |
+| RabbitMQ UI | http://localhost:15672 | `guest` / `guest` |
+| Jaeger | http://localhost:16686 | — |
 
-**Important — Keycloak realm:** The `nexusai` realm (users `demo` / `admin`) is imported on first start. If Keycloak was already running before a realm file change, restart it:
+If Keycloak was running before a realm file change: `docker compose restart keycloak`
 
-```bash
-docker compose restart keycloak
-```
-
-### Step 3 — Database
-
-Migrations run **automatically** when Context Service starts. To apply them manually:
-
-```bash
-dotnet ef database update --project src/NexusAI.ContextService
-```
-
-On first Context Service start, sample **shipment** data is seeded (`SHP-1001` … `SHP-1004`) for MCP SQL demos.
-
-### Step 4 — Configure OpenAI
+### OpenAI key
 
 Chat will not work without an API key. Use **user secrets** (recommended):
 
@@ -135,9 +302,9 @@ dotnet user-secrets set "OpenAI:ApiKey" "sk-your-key-here" --project src/NexusAI
 $env:OpenAI__ApiKey = "sk-your-key-here"   # session only
 ```
 
-Default model: `gpt-4o-mini` (configurable in `src/NexusAI.AgentService/appsettings.json`).
+Default model: `gpt-4o-mini` (in `src/NexusAI.AgentService/appsettings.json`).
 
-### Step 5 — Start backend services
+### Start backend services (one terminal each)
 
 Each service needs its **own terminal**. Start in this order — MCP servers before the gateway that calls them:
 
@@ -145,19 +312,20 @@ Each service needs its **own terminal**. Start in this order — MCP servers bef
 |-------|---------|------|
 | 1 | `dotnet run --project src/NexusAI.McpServers.Sql` | 5010 |
 | 2 | `dotnet run --project src/NexusAI.McpServers.Files` | 5011 |
-| 3 | `dotnet run --project src/NexusAI.McpGateway` | 5004 |
-| 4 | `dotnet run --project src/NexusAI.Identity` | 5001 |
-| 5 | `dotnet run --project src/NexusAI.ContextService` | 5002 |
-| 6 | `dotnet run --project src/NexusAI.AgentService` | 5003 |
-| 7 | `dotnet run --project src/NexusAI.ApiGateway` | 5000 |
-| 8 | `dotnet run --project src/NexusAI.AuditService` | worker |
-| 9 | `dotnet run --project src/NexusAI.NotificationService` | worker |
+| 3 | `dotnet run --project src/NexusAI.McpServers.Jira` | 5012 |
+| 4 | `dotnet run --project src/NexusAI.McpGateway` | 5004 |
+| 5 | `dotnet run --project src/NexusAI.Identity` | 5001 |
+| 6 | `dotnet run --project src/NexusAI.ContextService` | 5002 |
+| 7 | `dotnet run --project src/NexusAI.AgentService` | 5003 |
+| 8 | `dotnet run --project src/NexusAI.ApiGateway` | 5000 |
+| 9 | `dotnet run --project src/NexusAI.AuditService` | worker |
+| 10 | `dotnet run --project src/NexusAI.NotificationService` | worker |
 
-Steps 8–9 are **workers** (no HTTP port). They process RabbitMQ audit/notification queues. Chat works without them, but audit events will not flow through the async pipeline until they are running.
+Steps 9–10 are **workers** (no HTTP port). They process RabbitMQ audit/notification queues. Chat works without them, but audit events will not flow through the async pipeline until they are running.
 
 **Wait for** Context Service to finish migrations before relying on chat (watch its console for startup completion).
 
-### Step 6 — Start the frontend
+### Start frontend
 
 ```bash
 cd src/NexusAI.Web
@@ -165,23 +333,9 @@ npm install
 npm run dev
 ```
 
-Default environment is in `src/NexusAI.Web/.env`:
+Open **http://localhost:5173** — same URLs as [Docker deploy](#docker-urls) and [Minikube deploy](#minikube-urls).
 
-```env
-VITE_API_BASE_URL=http://localhost:5000
-VITE_KEYCLOAK_URL=http://localhost:8080
-VITE_KEYCLOAK_REALM=nexusai
-VITE_KEYCLOAK_CLIENT_ID=nexusai-web
-```
-
-Open **http://localhost:5173**
-
-| App user | Password | Access |
-|----------|----------|--------|
-| `demo` | `demo` | Chat |
-| `admin` | `admin` | Chat + [Admin dashboard](http://localhost:5173/admin) |
-
-### Step 7 — Verify it is working
+### Verify
 
 **Gateway health (no auth):**
 
@@ -194,103 +348,13 @@ curl http://localhost:5000/api/health
 - *"Which shipments from Thailand are delayed more than 3 days?"* → uses SQL MCP + `get_delayed_shipments`
 - *"Search documents for shipping delay policy"* → uses File MCP
 - *"What is our escalation process for delayed Thailand shipments?"* → multi-agent + document tools
+- *"Create a Jira incident for delayed Thailand shipments per policy"* → SQL + files + Jira MCP (`create_incident`)
 
 **Admin dashboard** (as `admin`): http://localhost:5173/admin — token usage, audit logs, MCP server health.
 
 **Jaeger:** http://localhost:16686 — traces from all services exporting OTLP to port `4317`.
 
 **RabbitMQ:** after a chat session, check the Audit Service console for `Audit consumer listening on nexusai.audit`.
-
----
-
-## B. Full Docker stack
-
-Builds and runs all backend services as containers (infrastructure + apps).
-
-```bash
-export OPENAI_API_KEY=sk-your-key-here          # Linux/macOS
-# $env:OPENAI_API_KEY = "sk-your-key-here"      # Windows PowerShell
-
-docker compose -f docker-compose.full.yml build
-docker compose -f docker-compose.full.yml up -d
-```
-
-| Service | URL |
-|---------|-----|
-| API Gateway | http://localhost:5000 |
-| Keycloak | http://localhost:8080 |
-
-Run the frontend locally (same `.env` as local dev). Dockerfiles live in `infra/docker/`.
-
----
-
-## C. Minikube (Kubernetes)
-
-Requires Minikube with **8 GB RAM** recommended.
-
-**1. Deploy:**
-
-**Windows:**
-
-```powershell
-$env:OPENAI_API_KEY = "sk-your-key-here"
-.\scripts\deploy-minikube.ps1
-```
-
-**Linux / macOS:**
-
-```bash
-export OPENAI_API_KEY=sk-your-key-here
-./scripts/deploy-minikube.sh
-```
-
-**2. Port-forward** (required — run in a **separate terminal**, leave open):
-
-```powershell
-.\scripts\port-forward-minikube.ps1          # Windows
-./scripts/port-forward-minikube.sh         # Linux/macOS
-```
-
-Forwards cluster services to the **same ports as local dev**:
-
-| Local port | Service |
-|------------|---------|
-| 5000 | API Gateway |
-| 8080 | Keycloak |
-| 16686 | Jaeger UI |
-| 15672 | RabbitMQ UI |
-
-**3. Frontend:**
-
-```bash
-cd src/NexusAI.Web
-cp .env .env.local    # Windows: copy .env .env.local
-npm run dev
-```
-
-Full details: [infra/minikube/README.md](infra/minikube/README.md)
-
----
-
-## Ports reference
-
-| Service | Port | Notes |
-|---------|------|-------|
-| API Gateway | 5000 | Single entry point for the UI |
-| Identity | 5001 | Profile API |
-| Context Service | 5002 | Conversations, memory, audit, admin |
-| Agent Service | 5003 | Chat + agent pipeline |
-| MCP Gateway | 5004 | Tool discovery and execution |
-| SQL MCP Server | 5010 | Internal — called by MCP Gateway |
-| File MCP Server | 5011 | Internal — reads `data/documents/` |
-| Keycloak | 8080 | Auth |
-| SQL Server | 1433 | Database |
-| Redis | 6379 | Cache |
-| RabbitMQ AMQP | 5672 | Messaging |
-| RabbitMQ UI | 15672 | Management console |
-| Jaeger UI | 16686 | Traces |
-| OTLP collector | 4317 | OpenTelemetry export |
-| React dev server | 5173 | Frontend |
 
 ---
 
@@ -303,7 +367,7 @@ Defined in `src/NexusAI.ContextService/appsettings.json`:
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `ConnectionStrings:NexusDb` | `Server=localhost,1433;...` | SQL Server |
-| `ConnectionStrings:Redis` | `localhost:6379` | Distributed cache |
+| `ConnectionStrings:Redis` | `localhost:6380` | Distributed cache |
 | `ConnectionStrings:RabbitMq` | `amqp://guest:guest@localhost:5672` | Audit publish |
 
 ### OpenAI (Agent Service)
@@ -354,7 +418,7 @@ curl -X POST http://localhost:5000/api/mcp/refresh -H "Authorization: Bearer <to
 
 ---
 
-## Messaging pipeline (Phase 5)
+## Messaging pipeline
 
 ```
 Context Service  ──publish──▶  nexusai.audit  ──consume──▶  Audit Service
@@ -408,6 +472,7 @@ src/
 ├── NexusAI.McpGateway/           # MCP orchestrator + Redis tool cache
 ├── NexusAI.McpServers.Sql/       # SQL MCP (HTTP)
 ├── NexusAI.McpServers.Files/     # File MCP (HTTP)
+├── NexusAI.McpServers.Jira/      # Jira MCP (HTTP, mock store)
 ├── NexusAI.Identity/             # User profile API
 ├── NexusAI.ContextService/       # Conversations, memory, audit, admin
 ├── NexusAI.AuditService/         # RabbitMQ audit consumer (worker)
@@ -418,14 +483,22 @@ src/
 
 infra/
 ├── keycloak/nexusai-realm.json   # Realm import (users, roles, clients)
-├── docker/                       # Per-service Dockerfiles
+├── docker/                       # Per-service Dockerfiles (+ nginx.web.conf)
+│   ├── Dockerfile.web            # React build → nginx
+│   └── Dockerfile.*              # .NET services
 ├── minikube/                     # Kubernetes manifests
 └── azure/                        # Container Apps Bicep stub
 
 data/documents/                   # Sandbox files for File MCP server
-scripts/                          # deploy-minikube.*, port-forward-minikube.*
-docker-compose.yml                # Infrastructure only
-docker-compose.full.yml           # Infrastructure + all services
+data/jira/                        # Mock Jira issues (Jira MCP)
+
+# Deploy (repository root)
+docker-compose.yml                # Infrastructure only (local dev)
+docker-compose.full.yml           # Docker full stack
+minikube-deploy.ps1 / .sh         # Minikube: deploy (+ start Minikube, port-forward)
+minikube-teardown.ps1 / .sh       # Minikube: teardown (+ stop port-forward)
+
+scripts/                          # Called by minikube-deploy / minikube-teardown
 ```
 
 ---
@@ -434,24 +507,26 @@ docker-compose.full.yml           # Infrastructure + all services
 
 | Problem | Likely cause | Fix |
 |---------|--------------|-----|
-| Redirect loop / login fails | Keycloak not ready or wrong `VITE_KEYCLOAK_URL` | Wait for Keycloak; check `.env` matches your run mode |
-| `demo` / `admin` login rejected | Realm not imported | `docker compose restart keycloak` |
-| Chat returns error immediately | Missing OpenAI key | Set user secret or `OpenAI__ApiKey` env var; restart Agent Service |
+| Redirect loop / login fails | Keycloak not ready or wrong `VITE_KEYCLOAK_URL` | Wait for Keycloak; check `.env` (local dev) or rebuild `web` image (Docker) |
+| `demo` / `admin` login rejected | Realm not imported | `docker compose restart keycloak` (or `-f docker-compose.full.yml`) |
+| Chat returns error immediately | Missing OpenAI key | Local: user secret or `OpenAI__ApiKey`; Docker: set `OPENAI_API_KEY` before `up`, then `docker compose -f docker-compose.full.yml up -d agent-service` |
 | 401 on API calls | Token expired or gateway not running | Refresh page; ensure API Gateway on :5000 |
 | 403 on `/admin` | User lacks `admin` role | Sign in as `admin` / `admin` |
-| MCP tools not found | MCP servers not started | Start SQL + File MCP servers before MCP Gateway |
+| MCP tools not found | MCP servers not started | Local: start SQL + File + Jira MCP before MCP Gateway; Docker: check `mcp-sql`, `mcp-files`, `mcp-jira` containers |
 | SQL tool errors | Context Service not migrated | Check Context Service logs; verify SQL container healthy |
 | Redis / RabbitMQ errors | Infra not up | `docker compose up -d`; check `docker compose ps` |
+| `Bind for 0.0.0.0:6379 failed` | Another Redis on port 6379 | NexusAI uses host port **6380**; connect to `localhost:6380` or stop the other container (`docker ps`) |
+| Port 5173 already in use | Vite dev + Docker `web` both running | Stop one: `docker compose -f docker-compose.full.yml stop web` or quit `npm run dev` |
 | No traces in Jaeger | OTLP endpoint unreachable | Ensure Jaeger container running on port 4317 |
-| Port already in use | Previous run still active | Stop old `dotnet run` processes or change `launchSettings.json` |
+| Cannot reach `:5000` / `:5173` (Minikube) | Port-forwards stopped | Re-run `.\minikube-deploy.ps1` or `./minikube-deploy.sh` |
 
-**Check logs:** each `dotnet run` terminal shows service-specific errors. For Docker: `docker compose logs -f <service>`.
+**Check logs:** each `dotnet run` terminal shows service-specific errors. For Docker: `docker compose -f docker-compose.full.yml logs -f <service>` (e.g. `web`, `agent-service`, `api-gateway`).
 
 **Reset database (destructive):**
 
 ```bash
-docker compose down -v
-docker compose up -d
+docker compose -f docker-compose.full.yml down -v
+docker compose -f docker-compose.full.yml up -d
 # Context Service will recreate schema on next start
 ```
 
@@ -460,51 +535,14 @@ docker compose up -d
 ## Build commands
 
 ```bash
-# Backend
 dotnet build NexusAI.sln
-dotnet test NexusAI.sln                    # if tests exist
+dotnet test NexusAI.sln
 
-# Frontend
 cd src/NexusAI.Web
-npm run build                              # production build → dist/
+npm install
+npm run build
 npm run lint
 ```
-
----
-
-## Feature phases (summary)
-
-<details>
-<summary>Phase 1 — Foundation</summary>
-
-React + Keycloak, API Gateway (YARP + JWT), Identity, Context Service, SQL Server, Docker Compose.
-</details>
-
-<details>
-<summary>Phase 2 — AI Layer</summary>
-
-Semantic Kernel + OpenAI, SSE streaming chat, tool execution logging, audit trail.
-</details>
-
-<details>
-<summary>Phase 3 — MCP Integration</summary>
-
-MCP Gateway, SQL and File MCP servers, dynamic tool loading, admin MCP APIs.
-</details>
-
-<details>
-<summary>Phase 4 — Agentic Orchestration</summary>
-
-Planner, Memory, Tool, and Review agents; agent pipeline timeline in the UI.
-</details>
-
-<details>
-<summary>Phase 5 — Enterprise Hardening</summary>
-
-Redis, RabbitMQ, OpenTelemetry/Jaeger, admin dashboard, Docker full stack, Minikube, Azure stubs.
-</details>
-
-See [ROADMAP.md](ROADMAP.md) for the full phased plan.
 
 ---
 

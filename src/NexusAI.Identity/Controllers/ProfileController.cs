@@ -27,7 +27,7 @@ public sealed class ProfileController : ControllerBase
 
         var roles = User.FindAll(ClaimTypes.Role)
             .Select(x => x.Value)
-            .Concat(User.FindAll("realm_access").SelectMany(_ => Array.Empty<string>()))
+            .Concat(User.FindAll("roles").Select(x => x.Value))
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct()
             .ToList();

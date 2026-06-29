@@ -32,7 +32,7 @@ public sealed class PlannerAgent(Kernel kernel)
                   "order": 1,
                   "title": "short step title",
                   "description": "what this step does",
-                  "toolServerId": "sql or files or null",
+                  "toolServerId": "sql or files or jira or null",
                   "toolName": "mcp tool name or null",
                   "arguments": { "key": "value" } or null
                 }
@@ -42,7 +42,9 @@ public sealed class PlannerAgent(Kernel kernel)
             - Use MCP tools when data or documents are needed.
             - Always end with a synthesis step (no tool) to prepare the final answer.
             - Prefer get_delayed_shipments for Thailand shipment delay questions.
-            - Keep 2-4 steps.
+            - Use files/read_document or search_documents for policy and escalation questions.
+            - Use jira/create_incident when the user asks to create a Jira incident or escalate per shipping-delay policy.
+            - Keep 2-5 steps for multi-system requests (SQL + policy + Jira).
             """;
 
         var userPrompt = $"""

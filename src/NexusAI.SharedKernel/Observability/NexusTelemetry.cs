@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NexusAI.SharedKernel.Messaging;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -15,7 +16,10 @@ public static class NexusTelemetry
         string serviceName,
         bool includeAspNetCore = false)
     {
-        var endpoint = configuration["OpenTelemetry:OtlpEndpoint"] ?? "http://localhost:4317";
+        var otelSection = configuration.GetSection("OpenTelemetry");
+        var enabled = otelSection.GetValue("Enabled", true);
+        var endpoint = otelSection["OtlpEndpoint"];
+        var exportToJaeger = enabled && !string.IsNullOrWhiteSpace(endpoint);
 
         services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName))
@@ -28,8 +32,12 @@ public static class NexusTelemetry
 
                 tracing
                     .AddHttpClientInstrumentation()
-                    .AddSource(serviceName)
-                    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint));
+                    .AddSource(serviceName);
+
+                if (exportToJaeger)
+                {
+                    tracing.AddOtlpExporter(options => ConfigureJaegerOtlp(options, endpoint!));
+                }
             })
             .WithMetrics(metrics =>
             {
@@ -38,12 +46,24 @@ public static class NexusTelemetry
                     metrics.AddAspNetCoreInstrumentation();
                 }
 
-                metrics
-                    .AddHttpClientInstrumentation()
-                    .AddOtlpExporter(options => options.Endpoint = new Uri(endpoint));
+                metrics.AddHttpClientInstrumentation();
+
+                if (exportToJaeger)
+                {
+                    metrics.AddOtlpExporter(options => ConfigureJaegerOtlp(options, endpoint!));
+                }
             });
 
         return services;
+    }
+
+    /// <summary>
+    /// Jaeger listens for OTLP/gRPC on port 4317. Do not use the deprecated OpenTelemetry.Exporter.Jaeger package.
+    /// </summary>
+    private static void ConfigureJaegerOtlp(OtlpExporterOptions options, string endpoint)
+    {
+        options.Endpoint = new Uri(endpoint);
+        options.Protocol = OtlpExportProtocol.Grpc;
     }
 
     public static IServiceCollection AddNexusRedisCache(this IServiceCollection services, IConfiguration configuration)

@@ -17,10 +17,11 @@ spec:
     spec:
       containers:
         - name: jaeger
-          image: jaegertracing/all-in-one:1.64
+          image: jaegertracing/all-in-one:1.76.0
           ports:
             - containerPort: 16686
             - containerPort: 4317
+            - containerPort: 4318
           env:
             - name: COLLECTOR_OTLP_ENABLED
               value: "true"
@@ -45,6 +46,9 @@ spec:
     - name: ui
       port: 16686
       targetPort: 16686
-    - name: otlp
+    - name: otlp-grpc
       port: 4317
       targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318

@@ -1,0 +1,57 @@
+---
+description: Jaeger tracing — OTLP only, valid Docker tags, no deprecated Jaeger NuGet
+alwaysApply: true
+---
+
+# OpenTelemetry + Jaeger (priority)
+
+When adding tracing or scaffolding a new .NET service/project:
+
+## Do NOT use
+
+- `OpenTelemetry.Exporter.Jaeger` — **deprecated/removed**; causes NuGet restore/build failures.
+- Docker tag `jaegertracing/all-in-one:1.64` — **invalid** (manifest not found). Jaeger tags are **full semver**: `1.76.0`, not `1.64`.
+
+## Required pattern
+
+1. **NuGet** (keep versions aligned, e.g. all `1.16.0`):
+   - `OpenTelemetry.Extensions.Hosting`
+   - `OpenTelemetry.Exporter.OpenTelemetryProtocol`
+   - `OpenTelemetry.Instrumentation.AspNetCore`
+   - `OpenTelemetry.Instrumentation.Http`
+
+2. **Export via OTLP**, not Jaeger exporter:
+
+```csharp
+tracing.AddOtlpExporter(options =>
+{
+    options.Endpoint = new Uri("http://localhost:4317");
+    options.Protocol = OtlpExportProtocol.Grpc;
+});
+```
+
+3. **Jaeger Docker** — use a tag that exists on Docker Hub:
+
+```yaml
+image: jaegertracing/all-in-one:1.76.0   # or :latest — never :1.64 (use :1.64.0 minimum)
+ports:
+  - "16686:16686"  # UI
+  - "4317:4317"    # OTLP gRPC
+  - "4318:4318"    # OTLP HTTP
+environment:
+  COLLECTOR_OTLP_ENABLED: "true"
+```
+
+Verify before committing: `docker pull jaegertracing/all-in-one:1.76.0`
+
+4. **Config**: `OpenTelemetry:OtlpEndpoint` = `http://localhost:4317`. Set `OpenTelemetry:Enabled` to `false` when Jaeger is not running.
+
+## Common failures
+
+| Symptom | Fix |
+|---------|-----|
+| `jaegertracing/all-in-one:1.64: not found` | Use full semver tag: `1.76.0` or `latest` |
+| NU1102 for `OpenTelemetry.Exporter.Jaeger` | Remove package; use OTLP exporter |
+| NU1605 package downgrade | Align all OpenTelemetry packages to same version |
+| No traces in Jaeger UI | `docker compose up -d jaeger`; verify port 4317 |
+| Export protocol errors | `OtlpExportProtocol.Grpc` for port 4317 |

@@ -18,7 +18,7 @@ spec:
       containers:
         - name: audit-service
           image: nexusai/audit-service:local
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           env:
             - name: ConnectionStrings__RabbitMq
               valueFrom:
@@ -51,7 +51,7 @@ spec:
       containers:
         - name: notification-service
           image: nexusai/notification-service:local
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           env:
             - name: ConnectionStrings__RabbitMq
               valueFrom:

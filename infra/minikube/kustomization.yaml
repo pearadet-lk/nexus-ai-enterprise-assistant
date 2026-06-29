@@ -16,9 +16,11 @@ resources:
   - apps/context-service.yaml
   - apps/mcp-sql.yaml
   - apps/mcp-files.yaml
+  - apps/mcp-jira.yaml
   - apps/mcp-gateway.yaml
   - apps/agent-service.yaml
   - apps/api-gateway.yaml
+  - apps/web.yaml
   - apps/audit-service.yaml
 
 configMapGenerator:

@@ -18,7 +18,7 @@ spec:
       containers:
         - name: api-gateway
           image: nexusai/api-gateway:local
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
           env:
@@ -29,6 +29,11 @@ spec:
                 configMapKeyRef:
                   name: nexusai-config
                   key: KEYCLOAK_AUTHORITY
+            - name: Keycloak__Issuer
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: KEYCLOAK_ISSUER
             - name: OpenTelemetry__OtlpEndpoint
               valueFrom:
                 configMapKeyRef:

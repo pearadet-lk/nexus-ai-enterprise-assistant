@@ -2,6 +2,11 @@
 # Build images first: docker compose -f docker-compose.full.yml build
 # Then start: docker compose -f docker-compose.full.yml up -d
 
+x-keycloak-auth: &keycloak-auth
+  Keycloak__Authority: http://keycloak:8080/realms/nexusai
+  # Browser tokens use localhost issuer; services fetch JWKS from the internal hostname.
+  Keycloak__Issuer: http://localhost:8080/realms/nexusai
+
 include:
   - path: docker-compose.yml
 
@@ -14,8 +19,8 @@ services:
     ports:
       - "5000:8080"
     environment:
+      <<: *keycloak-auth
       ASPNETCORE_URLS: http://+:8080
-      Keycloak__Authority: http://keycloak:8080/realms/nexusai
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
       ReverseProxy__Clusters__identity-cluster__Destinations__identity__Address: http://identity:8080/
       ReverseProxy__Clusters__context-cluster__Destinations__context__Address: http://context-service:8080/
@@ -34,8 +39,8 @@ services:
       dockerfile: infra/docker/Dockerfile.identity
     container_name: nexusai-identity
     environment:
+      <<: *keycloak-auth
       ASPNETCORE_URLS: http://+:8080
-      Keycloak__Authority: http://keycloak:8080/realms/nexusai
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
     depends_on:
       - keycloak
@@ -46,11 +51,11 @@ services:
       dockerfile: infra/docker/Dockerfile.context
     container_name: nexusai-context-service
     environment:
+      <<: *keycloak-auth
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__NexusDb: Server=sqlserver,1433;Database=NexusAI;User Id=sa;Password=Your_strong_password123;TrustServerCertificate=True
       ConnectionStrings__Redis: redis:6379
       ConnectionStrings__RabbitMq: amqp://guest:guest@rabbitmq:5672
-      Keycloak__Authority: http://keycloak:8080/realms/nexusai
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
     depends_on:
       - sqlserver
@@ -64,10 +69,10 @@ services:
       dockerfile: infra/docker/Dockerfile.agent
     container_name: nexusai-agent-service
     environment:
+      <<: *keycloak-auth
       ASPNETCORE_URLS: http://+:8080
       Services__ContextService: http://context-service:8080
       Services__McpGateway: http://mcp-gateway:8080
-      Keycloak__Authority: http://keycloak:8080/realms/nexusai
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
     depends_on:
@@ -80,16 +85,20 @@ services:
       dockerfile: infra/docker/Dockerfile.mcp-gateway
     container_name: nexusai-mcp-gateway
     environment:
+      <<: *keycloak-auth
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Redis: redis:6379
-      Keycloak__Authority: http://keycloak:8080/realms/nexusai
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
       McpServers__0__Endpoint: http://mcp-sql:8080
       McpServers__1__Endpoint: http://mcp-files:8080
+      McpServers__2__Id: jira
+      McpServers__2__Name: Jira MCP
+      McpServers__2__Endpoint: http://mcp-jira:8080
     depends_on:
       - redis
       - mcp-sql
       - mcp-files
+      - mcp-jira
 
   mcp-sql:
     build:
@@ -112,6 +121,17 @@ services:
     environment:
       ASPNETCORE_URLS: http://+:8080
 
+  mcp-jira:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.mcp-jira
+    container_name: nexusai-mcp-jira
+    volumes:
+      - ./data/jira:/app/data/jira
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      Jira__StorePath: /app/data/jira/issues.json
+
   audit-service:
     build:
       context: .
@@ -133,3 +153,19 @@ services:
       OpenTelemetry__OtlpEndpoint: http://jaeger:4317
     depends_on:
       - rabbitmq
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:5000}
+        VITE_KEYCLOAK_URL: ${VITE_KEYCLOAK_URL:-http://localhost:8080}
+        VITE_KEYCLOAK_REALM: ${VITE_KEYCLOAK_REALM:-nexusai}
+        VITE_KEYCLOAK_CLIENT_ID: ${VITE_KEYCLOAK_CLIENT_ID:-nexusai-web}
+    container_name: nexusai-web
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+      - keycloak

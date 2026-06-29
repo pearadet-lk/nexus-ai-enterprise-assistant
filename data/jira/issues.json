@@ -1,0 +1,11 @@
+[
+  {
+    "Key": "LOG-1000",
+    "Summary": "Thailand lane delay review — SHP-1002",
+    "Description": "Existing incident for delayed Thailand shipment awaiting carrier update.",
+    "Status": "Open",
+    "Priority": "High",
+    "ShipmentIds": "SHP-1002",
+    "CreatedAt": "2026-06-20T08:30:00Z"
+  }
+]

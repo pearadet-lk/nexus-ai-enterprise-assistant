@@ -1,0 +1,50 @@
+---
+description: Docker infra ports — avoid host port conflicts (Redis 6380, Jaeger semver tags)
+alwaysApply: true
+---
+
+# Docker infrastructure ports (priority)
+
+When adding `docker-compose.yml` or local dev infra for a new project:
+
+## Redis — avoid port 6379 conflicts
+
+Port **6379** is often already used (other Redis containers, WSL, local installs).
+
+**Default NexusAI pattern:** map host **6380** → container **6379**:
+
+```yaml
+redis:
+  image: redis:7-alpine
+  ports:
+    - "6380:6379"   # NOT "6379:6379" unless you own that port
+```
+
+Appsettings / env for local `dotnet run`:
+
+```json
+"ConnectionStrings": {
+  "Redis": "localhost:6380"
+}
+```
+
+Docker full-stack services use internal hostname `redis:6379` (unchanged).
+
+## If `Bind for 0.0.0.0:6379 failed: port is already allocated`
+
+1. Find the blocker: `docker ps` or `netstat -ano | findstr :6379`
+2. Either stop the other container **or** remap NexusAI to `6380:6379` and update connection strings
+3. Do not assume 6379 is free on developer machines
+
+## Other common Docker port clashes
+
+| Service | Default | Safer host port if busy |
+|---------|---------|-------------------------|
+| Redis | 6379 | **6380** |
+| Jaeger OTLP gRPC | 4317 | 14317 |
+| Jaeger UI | 16686 | (usually free) |
+| SQL Server | 1433 | (check before mapping) |
+
+## Jaeger image tag (see also opentelemetry-jaeger rule)
+
+Use `jaegertracing/all-in-one:1.76.0` — never `:1.64` (not found; use `:1.64.0` minimum).

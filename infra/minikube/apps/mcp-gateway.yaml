@@ -18,7 +18,7 @@ spec:
       containers:
         - name: mcp-gateway
           image: nexusai/mcp-gateway:local
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Never
           ports:
             - containerPort: 8080
           env:
@@ -34,6 +34,11 @@ spec:
                 configMapKeyRef:
                   name: nexusai-config
                   key: KEYCLOAK_AUTHORITY
+            - name: Keycloak__Issuer
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: KEYCLOAK_ISSUER
             - name: OpenTelemetry__OtlpEndpoint
               valueFrom:
                 configMapKeyRef:
@@ -57,6 +62,15 @@ spec:
                 configMapKeyRef:
                   name: nexusai-config
                   key: MCP_FILES_URL
+            - name: McpServers__2__Id
+              value: jira
+            - name: McpServers__2__Name
+              value: Jira MCP
+            - name: McpServers__2__Endpoint
+              valueFrom:
+                configMapKeyRef:
+                  name: nexusai-config
+                  key: MCP_JIRA_URL
           readinessProbe:
             tcpSocket:
               port: 8080

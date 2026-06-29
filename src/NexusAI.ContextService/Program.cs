@@ -1,8 +1,7 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using NexusAI.ContextService.Data;
 using NexusAI.SharedKernel;
+using NexusAI.SharedKernel.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,23 +20,7 @@ var connectionString = builder.Configuration.GetConnectionString("NexusDb")
 builder.Services.AddDbContext<NexusDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-var keycloakAuthority = builder.Configuration["Keycloak:Authority"]
-    ?? throw new InvalidOperationException("Keycloak:Authority is not configured.");
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.Authority = keycloakAuthority;
-        options.Audience = builder.Configuration["Keycloak:Audience"];
-        options.RequireHttpsMetadata = false;
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateAudience = builder.Configuration.GetValue("Keycloak:ValidateAudience", false),
-            NameClaimType = "preferred_username",
-            RoleClaimType = "roles"
-        };
-    });
-
+builder.Services.AddNexusKeycloakAuthentication(builder.Configuration);
 builder.Services.AddAuthorization();
 
 builder.Services.AddCors(options =>

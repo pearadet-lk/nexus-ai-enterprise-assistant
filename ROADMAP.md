@@ -31,7 +31,7 @@
 
 ---
 
-## Phase 3 — MCP Integration ✅ (current)
+## Phase 3 — MCP Integration ✅
 
 **Goal:** Dynamic tool discovery and execution through MCP servers.
 
@@ -49,7 +49,7 @@
 
 ---
 
-## Phase 4 — Agentic Orchestration ✅ (current)
+## Phase 4 — Agentic Orchestration ✅
 
 **Goal:** Multi-agent pipeline with planning, memory, and review.
 
@@ -89,6 +89,24 @@ Full stack in Docker Compose with tracing in Jaeger, audit via RabbitMQ, admin d
 
 ---
 
+## Phase 6 — Enterprise Connectors ✅ (current)
+
+**Goal:** Extend MCP with external enterprise systems; end-to-end incident workflows.
+
+| Component | Status | Deliverables |
+|-----------|--------|--------------|
+| Jira MCP Server | Done | `create_incident`, `search_issues` — port 5012 |
+| Mock Jira store | Done | File-backed `data/jira/issues.json` for local dev |
+| MCP Gateway | Done | Jira server registered in config |
+| Planner Agent | Done | Routes SQL → policy docs → Jira escalation flows |
+| Docker / Minikube | Done | `mcp-jira` service + image build |
+
+**Exit criteria:** User asks *"Create a Jira incident for delayed Thailand shipments per policy"* → agent queries SQL, reads shipping-delay policy, creates Jira incident, returns reviewed summary.
+
+**Deferred to Phase 7:** SharePoint MCP, real Atlassian API/OAuth, CRM/ERP connectors, Azure production deploy.
+
+---
+
 ## Phase dependency graph
 
 ```
@@ -101,4 +119,6 @@ Phase 3 (MCP Gateway + Servers)
 Phase 4 (Multi-Agent)
     ↓
 Phase 5 (Redis, RabbitMQ, OTel, Azure)
+    ↓
+Phase 6 (Jira + enterprise connectors)
 ```

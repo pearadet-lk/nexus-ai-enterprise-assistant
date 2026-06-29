@@ -26,3 +26,6 @@ Thumbs.db
 
 ## Database
 *.db
+
+## Minikube local state (port-forward PIDs)
+.minikube/

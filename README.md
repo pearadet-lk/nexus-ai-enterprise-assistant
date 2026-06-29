@@ -15,7 +15,7 @@ Built with **.NET 10** and **React 19**. Chat requires a valid **OpenAI API key*
 | **Enterprise** | Redis cache, RabbitMQ audit pipeline, OpenTelemetry → Jaeger, admin dashboard |
 | **Deploy** | `docker compose -f docker-compose.full.yml up -d` · `minikube-deploy.ps1` / `minikube-deploy.sh` |
 
-Future work: see [ROADMAP.md](ROADMAP.md).
+Future work: see [ROADMAP.md](ROADMAP.md). System design: see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ---
 
@@ -42,6 +42,8 @@ flowchart LR
 ```
 
 **Request flow (chat):** Browser → API Gateway (JWT) → Agent Service → Planner/Memory/Tool/Review agents → MCP Gateway → SQL/File MCP servers → streamed response back to UI.
+
+For a full system walkthrough (components, sequences, data flow, deployment topologies), see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
